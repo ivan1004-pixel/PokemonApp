@@ -1,98 +1,176 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
-
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+// app/(drawer)/index.tsx
+import React, { useMemo, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  StyleSheet,
+  Text
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+// (Ya no se importan Stack, router, FontAwesome, ni AppColors aquí)
+import { getPokemonById } from '../../api/pokemonApi';
+import PokemonCard from '../../components/PokemonCard';
+import SearchBar from '../../components/SearchBar';
+import { usePokemonList } from '../../hooks/usePokemonList';
+import { Pokemon } from '../../types/pokemon';
 
 export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+  // --- Lógica de hooks y estados ---
+  const {
+    pokemonList,
+    isLoading,
+    error,
+    loadMorePokemon,
+    isLoadingMore,
+  } = usePokemonList();
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchResult, setSearchResult] = useState<Pokemon[] | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
+
+  // --- Lógica de Filtro ---
+  const filteredPokemon = useMemo(() => {
+    if (searchResult !== null) {
+      return searchResult;
+    }
+    if (!searchTerm) {
+      return pokemonList;
+    }
+    return pokemonList.filter((pokemon) =>
+      pokemon.name.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [pokemonList, searchTerm, searchResult]);
+
+  // --- Lógica de Búsqueda API (al dar Enter) ---
+  const handleSearchSubmit = async () => {
+    if (!searchTerm) return;
+    setIsSearching(true);
+    try {
+      const foundPokemon = await getPokemonById(searchTerm.toLowerCase());
+      setSearchResult([foundPokemon]);
+    } catch (err) {
+      Alert.alert('No Encontrado', `No se pudo encontrar un Pokémon llamado "${searchTerm}"`);
+      setSearchResult([]);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  // --- Lógica al cambiar texto ---
+  const handleChangeText = (text: string) => {
+    setSearchTerm(text);
+    if (text === '') {
+      setSearchResult(null);
+    }
+  };
+
+  // --- Lógica de Scroll Infinito ---
+  const handleLoadMore = () => {
+    if (searchTerm || searchResult !== null) return;
+    loadMorePokemon();
+  };
+
+  // --- Lógica del Spinner de Carga (Footer) ---
+  const renderFooter = () => {
+    if (!isLoadingMore && !isSearching) return null;
+    return (
+      <ActivityIndicator size="small" color="#E63F34" style={styles.footerSpinner} />
+    );
+  };
+  
+  // --- Pantalla de Carga Inicial ---
+  if (isLoading && pokemonList.length === 0) {
+    return (
+        <SafeAreaView style={[styles.centered, styles.container]}>
+            <ActivityIndicator size="large" color="#E63F34" />
+            <Text style={styles.loadingText}>Cargando Pokédex...</Text>
+        </SafeAreaView>
+    );
+  }
+
+  // --- Pantalla de Error Inicial ---
+  if (error) {
+    return (
+        <SafeAreaView style={[styles.centered, styles.container]}>
+            <Text style={styles.errorText}>Error: {error}</Text>
+        </SafeAreaView>
+    );
+  }
+
+  // --- Renderizado Principal ---
+  return (
+    <SafeAreaView style={styles.container}>
+      
+      {/* (El <Stack.Screen> se borró de aquí) */}
+
+      <SearchBar
+        value={searchTerm}
+        onChangeText={handleChangeText}
+        onSubmitEditing={handleSearchSubmit}
+      />
+      
+      {/* Spinner de búsqueda API */}
+      {isSearching && (
+        <ActivityIndicator size="large" color="#E63F34" style={styles.footerSpinner} />
+      )}
+
+      {/* Mensaje de "No encontrado" */}
+      {!isSearching && filteredPokemon.length === 0 && (
+         <Text style={styles.errorText}>
+           {searchTerm 
+             ? `No se encontraron resultados para "${searchTerm}"`
+             : 'Cargando...'
+           }
+         </Text>
+      )}
+
+      {/* Lista de Pokémon */}
+      <FlatList
+        data={filteredPokemon}
+        renderItem={({ item }) => <PokemonCard pokemon={item} />}
+        keyExtractor={(item) => item.id.toString()}
+        numColumns={2}
+        contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        onEndReached={handleLoadMore}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={renderFooter}
+        scrollEnabled={!isSearching}
+      />
+    </SafeAreaView>
   );
 }
 
+// --- Estilos ---
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
+  container: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  centered: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    gap: 8,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#333',
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  errorText: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    padding: 20,
+    marginTop: 20,
+  },
+  listContent: {
+    paddingHorizontal: 8,
+    alignItems: 'center',
+  },
+  footerSpinner: {
+    marginVertical: 20,
   },
 });

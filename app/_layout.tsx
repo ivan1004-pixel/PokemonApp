@@ -1,24 +1,29 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+// app/_layout.tsx
 import { Stack } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import 'react-native-reanimated';
-
-import { useColorScheme } from '@/hooks/use-color-scheme';
-
-export const unstable_settings = {
-  anchor: '(tabs)',
-};
+import { FavoritesProvider } from '../context/FavoritesContext';
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
-
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+    <FavoritesProvider>
+      {/* Le decimos al Stack principal que NUNCA muestre un header.
+        Cada pantalla (drawer, favorites, [id]) es ahora responsable
+        de mostrar su propio header si lo necesita.
+      */}
+      <Stack screenOptions={{ headerShown: false }}>
+        
+        <Stack.Screen name="(drawer)" />
+        
+        <Stack.Screen name="favorites" />
+        
+        <Stack.Screen
+          name="pokemon/[id]"
+          options={{
+            // (La presentación modal está bien, pero el header 
+            // lo controlará el propio archivo [id].tsx)
+            presentation: 'modal',
+          }}
+        />
       </Stack>
-      <StatusBar style="auto" />
-    </ThemeProvider>
+    </FavoritesProvider>
   );
 }
